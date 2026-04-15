@@ -1,0 +1,8 @@
+{
+  "name": "mars-root",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "convex": "^1.35.1"
+  }
+}

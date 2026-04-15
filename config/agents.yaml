@@ -1,0 +1,36 @@
+# =============================================================================
+# MARS — Per-Agent Configuration
+# Override any of these values via .env environment variables
+# =============================================================================
+
+agents:
+  planner:
+    model: meta-llama/llama-3.2-3b-instruct
+    temperature: 0.0        # deterministic decomposition
+    max_tokens: 512
+    description: "Decomposes user queries into ordered research subtasks"
+
+  research:
+    model: meta-llama/llama-3.1-8b-instruct
+    temperature: 0.2
+    max_tokens: 1024
+    max_react_steps: 5
+    tools:
+      - web_search
+      - wiki_search
+      - calculator
+      - file_reader
+    description: "Executes subtasks by reasoning over and calling tools (ReAct)"
+
+  analyst:
+    model: meta-llama/llama-3.3-70b-instruct
+    temperature: 0.3
+    max_tokens: 2048
+    description: "Synthesizes raw research into a coherent, structured answer"
+
+  reviewer:
+    model: meta-llama/llama-3.1-8b-instruct
+    temperature: 0.0        # deterministic scoring
+    max_tokens: 256
+    quality_threshold: 0.75
+    description: "LLM-as-Judge: scores answer quality and decides pass/retry"
