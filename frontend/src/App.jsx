@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { 
   Search, 
@@ -16,7 +16,8 @@ import {
   Zap,
   BarChart2,
   Bot,
-  Radar
+  Radar,
+  Trash2
 } from 'lucide-react';
 import './App.css';
 
@@ -61,10 +62,7 @@ function AgentUsageCard({ usage }) {
   );
 }
 
-function LiveStatusIndicator({ sessionId }) {
-  // Real-time status query from Convex
-  const status = useQuery(api.heartbeats.getStatus, sessionId ? { session_id: sessionId } : "skip");
-
+function LiveStatusIndicator({ status, sessionId }) {
   if (!sessionId || !status) return null;
 
   const isActive = status.agent !== 'done' && status.agent !== 'error';
@@ -87,15 +85,41 @@ function LiveStatusIndicator({ sessionId }) {
   );
 }
 
+// Agent pipeline definition — order matters
+const PIPELINE = [
+  { key: 'planner',  label: 'Planner Agent',  desc: 'Decomposes query into subtasks',      color: '#a78bfa' },
+  { key: 'research', label: 'Research Agent', desc: 'Executes each subtask via ReAct loop', color: '#38bdf8' },
+  { key: 'analyst',  label: 'Analyst Agent',  desc: 'Synthesizes findings into an answer',  color: '#4ade80' },
+  { key: 'reviewer', label: 'Reviewer Agent', desc: 'Quality-gates the final answer',       color: '#fb923c' },
+];
+
+const PIPELINE_ORDER = PIPELINE.map(p => p.key);
+
+function getStageStatus(stageKey, activeAgent, result, loading) {
+  if (!loading && !result) return 'idle';
+  if (result) return 'done';
+  const activeIdx = PIPELINE_ORDER.indexOf(activeAgent);
+  const stageIdx  = PIPELINE_ORDER.indexOf(stageKey);
+  if (activeIdx === -1) return 'pending';
+  if (stageIdx < activeIdx)  return 'done';
+  if (stageIdx === activeIdx) return 'active';
+  return 'pending';
+}
+
 function App() {
   const [query, setQuery] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
-  // Real-time session history from Convex
+  // Convex Hooks
   const history = useQuery(api.sessions.getRecentSessions, { limit: 15 }) || [];
+  const deleteSession = useMutation(api.sessions.remove);
+  
+  // Real-time agent heartbeat from Convex (lifted here so sidebar can use it too)
+  const heartbeatStatus = useQuery(api.heartbeats.getStatus, currentSessionId ? { session_id: currentSessionId } : 'skip');
 
   const handleSearch = async (e) => {
     e?.preventDefault();
@@ -145,6 +169,29 @@ function App() {
     setCurrentSessionId(session.session_id);
   };
 
+  const handleDeleteSession = async (e, id, sessionId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (window.confirm("Are you sure you want to delete this research session?")) {
+      try {
+        setDeletingId(id);
+        await deleteSession({ id });
+        
+        if (currentSessionId === sessionId) {
+          setResult(null);
+          setQuery('');
+          setCurrentSessionId(null);
+        }
+      } catch (err) {
+        console.error("Failed to delete session:", err);
+        alert("Failed to delete session.");
+      } finally {
+        setDeletingId(null);
+      }
+    }
+  };
+
   // Aggregate totals across all llm_usage entries
   const usageTotals = result?.llm_usage?.length
     ? result.llm_usage.reduce(
@@ -184,7 +231,15 @@ function App() {
                 onClick={() => loadSession(s)}
                 title={s.query}
               >
-                {s.query}
+                <span className="history-query">{s.query}</span>
+                <button 
+                  className="delete-session-btn" 
+                  disabled={deletingId === s._id}
+                  onClick={(e) => handleDeleteSession(e, s._id, s.session_id)}
+                  title="Delete session"
+                >
+                  {deletingId === s._id ? <div className="btn-spinner" /> : <Trash2 size={12} />}
+                </button>
               </div>
             )) : (
               <div className="history-item empty">No history yet</div>
@@ -195,23 +250,87 @@ function App() {
         <div className="sidebar-section">
           <div className="sidebar-title">
             <Layers size={14} style={{ marginRight: '8px' }} />
-            Research Plan
+            Agent Pipeline
           </div>
-          <div className="subtask-list">
-            {result?.subtasks ? result.subtasks.map((task, i) => (
-              <div key={i} className={`subtask-item ${loading ? 'active pulse' : 'completed'}`}>
-                <CheckCircle2 size={16} className="subtask-icon text-accent" />
-                <span className="subtask-text">{task}</span>
-              </div>
-            )) : loading ? (
-              <div className="subtask-item active pulse">
-                <Activity size={16} className="subtask-icon" />
-                <span className="subtask-text">Decomposing query...</span>
-              </div>
-            ) : (
-              <div className="subtask-item empty">Enter a query to see the plan</div>
-            )}
-          </div>
+
+          {!loading && !result ? (
+            <div className="subtask-item empty">Run a query to see the pipeline</div>
+          ) : (
+            <div className="pipeline-list">
+              {PIPELINE.map((stage, si) => {
+                const status = getStageStatus(stage.key, heartbeatStatus?.agent, result, loading);
+                const isActive = status === 'active';
+                const isDone   = status === 'done';
+
+                return (
+                  <div
+                    key={stage.key}
+                    className={`pipeline-stage pipeline-stage--${status}`}
+                    style={{ '--stage-color': stage.color }}
+                  >
+                    {/* Stage header: agent name + badge */}
+                    <div className="pipeline-stage-header">
+                      <div className="pipeline-agent-dot" />
+                      <div className="pipeline-agent-info">
+                        <span className="pipeline-agent-name">{stage.label}</span>
+                        <span className="pipeline-agent-desc">{stage.desc}</span>
+                      </div>
+                      <div className={`pipeline-status-badge pipeline-badge--${status}`}>
+                        {isDone   && <CheckCircle2 size={12} />}
+                        {isActive && <Activity size={12} className="pulse" />}
+                        {!isDone && !isActive && <Clock size={12} />}
+                        <span>{isDone ? 'Done' : isActive ? 'Active' : 'Pending'}</span>
+                      </div>
+                    </div>
+
+                    {/* Subtasks nested under Research Agent */}
+                    {stage.key === 'research' && (
+                      <div className="pipeline-subtasks">
+                        {(() => {
+                          // Prefer live subtasks from heartbeat; fall back to final result
+                          const liveTasks = heartbeatStatus?.subtasks || result?.subtasks;
+                          const activeIdx = heartbeatStatus?.subtask_index;
+
+                          if (liveTasks?.length) {
+                            return liveTasks.map((task, i) => {
+                              // Determine per-subtask status when research is running
+                              let taskStatus = 'done';
+                              if (loading && activeIdx !== undefined) {
+                                if (i < activeIdx)      taskStatus = 'done';
+                                else if (i === activeIdx) taskStatus = 'active';
+                                else                    taskStatus = 'pending';
+                              }
+                              return (
+                                <div key={i} className={`pipeline-subtask-item pipeline-subtask--${taskStatus}`}>
+                                  {taskStatus === 'done'    && <CheckCircle2 size={12} style={{ color: stage.color, flexShrink: 0 }} />}
+                                  {taskStatus === 'active'  && <Activity size={12} className="pulse" style={{ color: stage.color, flexShrink: 0 }} />}
+                                  {taskStatus === 'pending' && <Clock size={12} style={{ flexShrink: 0, opacity: 0.4 }} />}
+                                  <span>{task}</span>
+                                </div>
+                              );
+                            });
+                          }
+
+                          // Planner not yet done — show spinner
+                          if (loading) {
+                            return (
+                              <div className="pipeline-subtask-item pipeline-subtask--pending">
+                                <Clock size={12} style={{ flexShrink: 0, opacity: 0.4 }} />
+                                <span style={{ opacity: 0.4 }}>Waiting for planner…</span>
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })()}
+
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -236,7 +355,7 @@ function App() {
         </div>
 
         {/* Live Status Bar (Convex powered) */}
-        <LiveStatusIndicator sessionId={currentSessionId} />
+        <LiveStatusIndicator status={heartbeatStatus} sessionId={currentSessionId} />
 
         {/* Error Handling */}
         {error && (

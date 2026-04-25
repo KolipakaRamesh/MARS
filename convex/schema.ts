@@ -33,6 +33,7 @@ export default defineSchema({
     agent: v.string(),
     status: v.string(),
     subtask_index: v.optional(v.number()),
+    subtasks: v.optional(v.array(v.string())),
     last_updated: v.number(),
   }).index("by_session_id", ["session_id"]),
 });

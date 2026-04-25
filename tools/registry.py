@@ -74,6 +74,6 @@ def build_default_registry() -> ToolRegistry:
     registry.register(
         "file_reader",
         file_reader,
-        "Read the contents of a local file. Input: absolute or relative file path.",
+        "CRITICAL: Use this for ANY local file path. Input: absolute path with forward slashes (e.g., C:/Users/file.txt).",
     )
     return registry

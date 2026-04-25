@@ -24,7 +24,9 @@ def file_reader(file_path: str) -> str:
         File contents (truncated if large) or a descriptive error string.
     """
     try:
-        path = Path(file_path).resolve()
+        # LLMs sometimes wrap paths in quotes or add stray spaces
+        clean_path = file_path.strip().strip("'\"")
+        path = Path(clean_path).resolve()
 
         if not path.exists():
             return f"File not found: {file_path}"

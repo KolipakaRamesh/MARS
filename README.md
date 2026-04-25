@@ -675,15 +675,6 @@ npm run build          # builds to frontend/dist/
 { "status": "ok", "system": "MARS", "graph_ready": true }
 ```
 
-### `GET /sessions?n=10` — Recent Session History
-```json
-{
-  "sessions": [
-    { "session_id": "mars-1234", "query": "...", "verdict": "PASS", "quality_score": 0.86 }
-  ]
-}
-```
-
 ---
 
 ## Configuration Reference

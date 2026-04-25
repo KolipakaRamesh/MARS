@@ -34,7 +34,7 @@ class AnalystAgent(BaseAgent):
         self.llm = get_provider(
             model=settings.analyst_model,
             temperature=0.3,
-            max_tokens=2048,
+            max_tokens=1024,
         )
 
     @trace_agent("analyst")

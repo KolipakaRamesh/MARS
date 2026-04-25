@@ -34,3 +34,26 @@ export const getRecentSessions = query({
       .take(args.limit);
   },
 });
+/**
+ * Remove a session and its associated heartbeat by Convex ID.
+ */
+export const remove = mutation({
+  args: { id: v.id("sessions") },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.id);
+    if (!session) return;
+
+    const sessionId = session.session_id;
+    await ctx.db.delete(args.id);
+
+    // Also cleanup the heartbeat(s)
+    const heartbeats = await ctx.db
+      .query("heartbeats")
+      .withIndex("by_session_id", (q) => q.eq("session_id", sessionId))
+      .collect();
+
+    for (const hb of heartbeats) {
+      await ctx.db.delete(hb._id);
+    }
+  },
+});

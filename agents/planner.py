@@ -75,15 +75,36 @@ class PlannerAgent(BaseAgent):
 
     @staticmethod
     def _parse_subtasks(raw: str) -> list[str]:
-        """Extract JSON array from LLM output (handles markdown code fences)."""
+        """Extract JSON array from LLM output (handles markdown code fences and raw backslashes)."""
         # Strip markdown fences if present
         cleaned = re.sub(r"```[a-z]*\n?", "", raw).strip()
+        
         # Find first [...] block
         match = re.search(r"\[.*?\]", cleaned, re.DOTALL)
-        if match:
-            arr = json.loads(match.group())
-        else:
-            arr = json.loads(cleaned)
+        content_to_parse = match.group() if match else cleaned
+
+        # Windows paths often contain single backslashes which break json.loads.
+        # Specifically, "C:\Users" is invalid because \U is a unicode escape.
+        # We pre-emptively replace backslashes in Windows-style paths (e.g. C:\) with forward slashes.
+        content_to_parse = re.sub(r'([A-Za-z]:)\\(?![\\"])', r'\1/', content_to_parse)
+
+        try:
+            arr = json.loads(content_to_parse)
+        except Exception:
+            # Fallback: Python's literal_eval is much more lenient with backslashes in strings
+            import ast
+            try:
+                # Ensure it looks like a list
+                if not content_to_parse.strip().startswith('['):
+                    content_to_parse = f"[{content_to_parse}]"
+                arr = ast.literal_eval(content_to_parse)
+            except Exception:
+                # Final attempt: global replace backslash with forward slash and parse again
+                try:
+                    arr = json.loads(content_to_parse.replace("\\", "/"))
+                except Exception:
+                    # If all else fails, just return the raw string as a single task list
+                    arr = [content_to_parse]
 
         if not isinstance(arr, list) or len(arr) == 0:
             raise ValueError("Expected non-empty JSON array")

@@ -14,13 +14,13 @@ class Settings(BaseSettings):
     # ── Agent Models ─────────────────────────────────────────────────────────
     planner_model: str = "meta-llama/llama-3.2-3b-instruct"
     research_model: str = "meta-llama/llama-3.1-8b-instruct"
-    analyst_model: str = "meta-llama/llama-3.3-70b-instruct"
+    analyst_model:  str = "meta-llama/llama-3.1-8b-instruct"   # switched from 70B for speed
     reviewer_model: str = "meta-llama/llama-3.1-8b-instruct"
 
     # ── Orchestration ────────────────────────────────────────────────────────
-    max_iterations: int = 3
+    max_iterations: int = 2    # reduced from 3 to cut retry latency
     quality_threshold: float = 0.75
-    max_react_steps: int = 5
+    max_react_steps: int = 3   # reduced from 5; saves 2 LLM calls per subtask
 
     # ── Memory ───────────────────────────────────────────────────────────────
     memory_ttl_days: int = 90

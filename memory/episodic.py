@@ -66,14 +66,3 @@ class EpisodicMemory:
         except Exception as exc:
             logger.warning("Failed to log session to Convex: %s", exc)
 
-    def recent_sessions(self, n: int = 10) -> list[dict]:
-        """Return the N most recent session records via Convex query."""
-        client = self._get_client()
-        if not client:
-            return []
-
-        try:
-            return client.query("sessions:getRecentSessions", {"limit": n})
-        except Exception as exc:
-            logger.warning("Failed to fetch sessions from Convex: %s", exc)
-            return []

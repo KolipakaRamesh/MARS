@@ -131,7 +131,7 @@ async def run_query(req: QueryRequest):
                     try:
                         status_msg = f"Agent '{node_name}' is processing..."
                         subtask_idx = node_output.get("current_subtask_index")
-                        
+
                         heartbeat_data = {
                             "session_id": req.session_id,
                             "agent": node_name,
@@ -140,10 +140,15 @@ async def run_query(req: QueryRequest):
                         if subtask_idx is not None:
                             heartbeat_data["subtask_index"] = subtask_idx
 
+                        # After planner runs, stream its subtasks to Convex so
+                        # the frontend can display them immediately
+                        if node_name == "planner" and node_output.get("subtasks"):
+                            heartbeat_data["subtasks"] = node_output["subtasks"]
+
                         convex.mutation("heartbeats:update", heartbeat_data)
                     except Exception as exc:
                         logger.debug("Heartbeat push failed: %s", exc)
-                
+
                 # Accumulate the final state
                 final_state = {**final_state, **node_output}
 
@@ -190,14 +195,6 @@ async def run_query(req: QueryRequest):
         llm_usage=final_state.get("llm_usage", []),
         error=final_state.get("error"),
     )
-
-
-@app.get("/sessions")
-def get_sessions(n: int = 10):
-    """Return the N most recent session records from episodic memory."""
-    if _episodic_memory is None:
-        return {"sessions": []}
-    return {"sessions": _episodic_memory.recent_sessions(n)}
 
 # ── Serve Frontend ────────────────────────────────────────────────────────────
 
