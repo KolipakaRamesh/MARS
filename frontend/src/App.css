@@ -294,6 +294,20 @@
   opacity: 1 !important;
 }
 
+.delete-session-btn.confirming {
+  opacity: 1;
+  background: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  width: auto;
+  padding: 2px 8px;
+}
+
+.confirm-text {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .btn-spinner {
   width: 12px;
   height: 12px;

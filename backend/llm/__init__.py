@@ -1,5 +1,5 @@
 """LLM package. Default export: get_provider factory."""
-from llm.openrouter_provider import OpenRouterProvider
+from backend.llm.openrouter_provider import OpenRouterProvider
 
 
 def get_provider(model: str, temperature: float = 0.1, max_tokens: int = 1024) -> OpenRouterProvider:

@@ -1,16 +1,17 @@
 """
 MARS — Tool Registry.
 
-Tools are pure functions registered by name. The ResearchAgent queries
+Tools are functions (sync or async) registered by name. The ResearchAgent queries
 this registry to discover available tools and their descriptions,
 which are injected into the ReAct system prompt.
 
 Design:
-  - Each tool is a plain Python function (str → str)
+  - Each tool is a Python function (str → str or str → awaitable str)
   - Tools have no state — safe to call concurrently
   - Registration is explicit — no magical auto-discovery
 """
-from typing import Callable, Dict, Any
+import asyncio
+from typing import Callable, Dict, Any, Union, Coroutine, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,15 +21,30 @@ class ToolRegistry:
     def __init__(self):
         self._tools: Dict[str, Dict[str, Any]] = {}
 
-    def register(self, name: str, fn: Callable[[str], str], description: str) -> None:
+    def register(self, name: str, fn: Union[Callable[[str], str], Callable[[str], Coroutine[Any, Any, str]]], description: str) -> None:
         """Register a tool by name."""
         self._tools[name] = {"fn": fn, "description": description}
         logger.debug("Tool registered: %s", name)
 
-    def get(self, name: str) -> Callable[[str], str] | None:
-        """Return the tool function or None if not found."""
+    def get(self, name: str) -> Any | None:
+        """Return the tool entry or None if not found."""
+        return self._tools.get(name)
+
+    async def call(self, name: str, input_str: str) -> str:
+        """Execute a tool by name, handling both sync and async functions."""
         entry = self._tools.get(name)
-        return entry["fn"] if entry else None
+        if not entry:
+            return f"Tool '{name}' not found."
+        
+        fn = entry["fn"]
+        try:
+            if asyncio.iscoroutinefunction(fn):
+                return await fn(input_str)
+            else:
+                return fn(input_str)
+        except Exception as exc:
+            logger.error("Error executing tool '%s': %s", name, exc)
+            return f"Error executing tool '{name}': {str(exc)}"
 
     def list_tools(self) -> list[dict]:
         """Return [{name, description}] for all registered tools."""
@@ -50,10 +66,10 @@ class ToolRegistry:
 
 def build_default_registry() -> ToolRegistry:
     """Factory — builds registry with all default MARS tools pre-registered."""
-    from tools.web_search import web_search
-    from tools.wiki_search import wiki_search
-    from tools.calculator import calculator
-    from tools.file_reader import file_reader
+    from backend.tools.web_search import web_search
+    from backend.tools.wiki_search import wiki_search
+    from backend.tools.calculator import calculator
+    from backend.tools.file_reader import file_reader
 
     registry = ToolRegistry()
     registry.register(
@@ -76,4 +92,9 @@ def build_default_registry() -> ToolRegistry:
         file_reader,
         "CRITICAL: Use this for ANY local file path. Input: absolute path with forward slashes (e.g., C:/Users/file.txt).",
     )
+    
+    # ── MCP Tools Placeholder ─────────────────────────────────────────────
+    # In a full implementation, we would loop over configured MCP servers 
+    # and register their tools here. For now, we've enabled the infrastructure.
+    
     return registry

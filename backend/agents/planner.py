@@ -14,15 +14,14 @@ import logging
 import re
 from typing import Optional
 
-from agents.base import BaseAgent
-from llm import get_provider
-from observability.tracer import trace_agent
-from orchestration.state import AgentState
-from config.settings import settings
-from agents.prompts import PLANNER_SYSTEM_PROMPT
+from backend.agents.base import BaseAgent
+from backend.llm import get_provider
+from backend.observability.tracer import trace_agent
+from backend.orchestration.state import AgentState
+from backend.config.settings import settings
+from backend.agents.prompts import PLANNER_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
-
 
 
 class PlannerAgent(BaseAgent):
@@ -37,11 +36,11 @@ class PlannerAgent(BaseAgent):
         )
 
     @trace_agent("planner")
-    def run(self, state: AgentState) -> dict:
+    async def run(self, state: AgentState) -> dict:
         query = state["query"]
         logger.info("[Planner] Decomposing query: %s", query[:80])
 
-        subtasks, usage = self._plan_with_usage(query)
+        subtasks, usage = await self._plan_with_usage(query)
         logger.info("[Planner] Generated %d subtasks", len(subtasks))
 
         return {
@@ -53,12 +52,12 @@ class PlannerAgent(BaseAgent):
             ],
         }
 
-    def _plan_with_usage(self, query: str, retries: int = 2) -> tuple:
+    async def _plan_with_usage(self, query: str, retries: int = 2) -> tuple:
         """Invoke LLM with usage tracking and parse JSON, with retry on parse failure."""
         last_usage = {"model": self.llm.model, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "latency_ms": 0}
         for attempt in range(retries):
             try:
-                raw, usage = self.llm.invoke_with_usage(PLANNER_SYSTEM_PROMPT, query)
+                raw, usage = await self.llm.invoke_with_usage(PLANNER_SYSTEM_PROMPT, query)
                 last_usage = usage
                 return self._parse_subtasks(raw), last_usage
             except (Exception) as exc:
@@ -68,9 +67,9 @@ class PlannerAgent(BaseAgent):
                     return [query], last_usage
         return [query], last_usage
 
-    def _plan(self, query: str, retries: int = 2) -> list:
+    async def _plan(self, query: str, retries: int = 2) -> list:
         """Legacy wrapper — returns subtasks only."""
-        subtasks, _ = self._plan_with_usage(query, retries)
+        subtasks, _ = await self._plan_with_usage(query, retries)
         return subtasks
 
     @staticmethod

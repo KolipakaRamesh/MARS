@@ -11,7 +11,7 @@ and can be unit-tested by passing a mock state dict.
 """
 from abc import ABC, abstractmethod
 from datetime import datetime
-from orchestration.state import AgentState
+from backend.orchestration.state import AgentState
 
 
 class BaseAgent(ABC):
@@ -21,7 +21,7 @@ class BaseAgent(ABC):
     description: str = ""
 
     @abstractmethod
-    def run(self, state: AgentState) -> dict:
+    async def run(self, state: AgentState) -> dict:
         """
         Execute the agent's logic.
 

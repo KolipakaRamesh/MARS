@@ -24,9 +24,9 @@ def wiki_search(topic: str, sentences: int = 8) -> str:
         import wikipedia
 
         wikipedia.set_lang("en")
-        # Auto-suggest handles minor spelling differences
-        summary = wikipedia.summary(topic, sentences=sentences, auto_suggest=True)
-        page = wikipedia.page(topic, auto_suggest=True)
+        # Disable auto-suggest as it can sometimes lead to incorrect page matches
+        summary = wikipedia.summary(topic, sentences=sentences, auto_suggest=False)
+        page = wikipedia.page(topic, auto_suggest=False)
         return (
             f"Wikipedia: {page.title}\n"
             f"URL: {page.url}\n\n"

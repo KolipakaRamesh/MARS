@@ -17,22 +17,21 @@ Why text-based ReAct (not function-calling)?
 Memory injection: Past similar research is retrieved from Pinecone and prepended
 to the subtask context so the agent avoids re-researching known facts.
 """
+import asyncio
 import logging
 import re
 from typing import Optional
 
-from agents.base import BaseAgent
-from llm import get_provider
-from memory.long_term import LongTermMemory
-from observability.tracer import trace_agent
-from orchestration.state import AgentState
-from tools.registry import ToolRegistry
-from config.settings import settings
-from agents.prompts import RESEARCH_REACT_SYSTEM_PROMPT
+from backend.agents.base import BaseAgent
+from backend.llm import get_provider
+from backend.memory.long_term import LongTermMemory
+from backend.observability.tracer import trace_agent
+from backend.orchestration.state import AgentState
+from backend.tools.registry import ToolRegistry
+from backend.config.settings import settings
+from backend.agents.prompts import RESEARCH_REACT_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
-
-
 
 
 class ResearchAgent(BaseAgent):
@@ -50,7 +49,7 @@ class ResearchAgent(BaseAgent):
         self.max_steps = settings.max_react_steps
 
     @trace_agent("research")
-    def run(self, state: AgentState) -> dict:
+    async def run(self, state: AgentState) -> dict:
         idx = state["current_subtask_index"]
         subtask = state["subtasks"][idx]
 
@@ -61,7 +60,7 @@ class ResearchAgent(BaseAgent):
         memory_context = self._format_memory(memory_snippets)
 
         # Execute ReAct loop
-        result, usage = self._react_loop(subtask, memory_context)
+        result, usage = await self._react_loop(subtask, memory_context)
 
         return {
             "raw_research": [f"=== Subtask {idx + 1}: {subtask} ===\n{result}"],
@@ -81,7 +80,7 @@ class ResearchAgent(BaseAgent):
     # ReAct Loop
     # ------------------------------------------------------------------
 
-    def _react_loop(self, subtask: str, memory_context: str) -> tuple:
+    async def _react_loop(self, subtask: str, memory_context: str) -> tuple:
         """
         Multi-turn conversation implementing the ReAct pattern.
         Returns (answer_str, aggregated_usage_dict).
@@ -108,7 +107,7 @@ class ResearchAgent(BaseAgent):
         }
 
         for step in range(self.max_steps):
-            response, step_usage = self.llm.chat_with_usage(system, messages)
+            response, step_usage = await self.llm.chat_with_usage(system, messages)
             # Accumulate usage
             agg_usage["prompt_tokens"]     += step_usage.get("prompt_tokens", 0)
             agg_usage["completion_tokens"] += step_usage.get("completion_tokens", 0)
@@ -134,13 +133,8 @@ class ResearchAgent(BaseAgent):
                 })
                 continue
 
-            # Execute tool
-            tool_fn = self.tool_registry.get(tool_name)
-            if tool_fn:
-                logger.debug("[Research] Calling tool '%s' with input: %s", tool_name, tool_input[:80])
-                observation = tool_fn(tool_input)
-            else:
-                observation = f"Tool '{tool_name}' not found. Available: {', '.join(self.tool_registry.tool_names())}"
+            # Execute tool (Unified call handles sync/async)
+            observation = await self.tool_registry.call(tool_name, tool_input)
 
             messages.append({
                 "role": "user",

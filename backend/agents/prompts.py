@@ -19,12 +19,15 @@ Each subtask should be independently researchable.
 RULES:
 - Return ONLY a valid JSON array of strings — 2 items minimum, 3 items maximum
 - No explanations, no markdown, no code fences
+- IMPORTANT: If the query contains an acronym (e.g., MCP, RAG, LLM), the first subtask MUST be to define that acronym in the specific context of the query.
+- NOTE: 'MCP' in modern AI usually refers to the 'Model Context Protocol' (integration protocol), NOT the historical 'McCulloch-Pitts Neuron' unless explicitly stated.
+- Do NOT assume the meaning of an acronym; let the research agent find it.
 - Order subtasks logically (background first, then specifics)
 - Each subtask must be a clear, actionable research question
 - IMPORTANT: For Windows file paths, ALWAYS use forward slashes (e.g., C:/path/to/file) to ensure JSON compatibility
 
 EXAMPLE OUTPUT:
-["Find recent advances in X from 2023-2024", "Explain the key principles of Y and compare approaches"]
+["Define 'MCP' in the context of AI and identify its full form", "Find recent advances in X from 2023-2024", "Explain the key principles of Y and compare approaches"]
 """
 
 # ------------------------------------------------------------------
@@ -61,6 +64,7 @@ RULES:
 - The path "C:/" refers to a Windows drive, NOT the C programming language.
 - ALWAYS use forward slashes (/) for paths in Action Input.
 - Always end with "Final Answer:"
+- NOTE: If you retrieve records from memory that seem outdated (e.g., historical ML definitions for modern acronyms), PRIORTIZE fresh web search results.
 """
 
 # ------------------------------------------------------------------

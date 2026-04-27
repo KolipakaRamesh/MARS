@@ -15,16 +15,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from agents.planner import PlannerAgent
-from agents.analyst import AnalystAgent
-from agents.reviewer import ReviewerAgent
-from agents.research import ResearchAgent
-from memory.long_term import LongTermMemory
-from memory.episodic import EpisodicMemory
-from orchestration.graph import build_graph
-from orchestration.state import initial_state
-from tools.registry import build_default_registry
-from config.settings import settings
+from backend.agents.planner import PlannerAgent
+from backend.agents.analyst import AnalystAgent
+from backend.agents.reviewer import ReviewerAgent
+from backend.agents.research import ResearchAgent
+from backend.memory.long_term import LongTermMemory
+from backend.memory.episodic import EpisodicMemory
+from backend.orchestration.graph import build_graph
+from backend.orchestration.state import initial_state
+from backend.tools.registry import build_default_registry
+from backend.config.settings import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ _long_term_memory = None
 _episodic_memory = None
 
 # Calculate absolute path to frontend/dist
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 FRONTEND_DIR = BASE_DIR / "frontend" / "dist"
 
 
@@ -121,8 +121,8 @@ async def run_query(req: QueryRequest):
 
     final_state = state
     try:
-        # Use stream() to track execution stage by stage
-        for output in _graph.stream(state):
+        # Use astream() to track execution stage by stage
+        async for output in _graph.astream(state):
             for node_name, node_output in output.items():
                 logger.info("[Graph] Enter node: %s", node_name)
                 
@@ -201,7 +201,7 @@ async def run_query(req: QueryRequest):
 @app.get("/")
 async def serve_index():
     from fastapi.responses import FileResponse
-    index_path = FRONTEND_DIR / "index.html"
+    index_path = FRONTEND_DIR / index.html
     if not index_path.exists():
         return {"error": f"Frontend not found at {index_path}. Did you run 'npm run build'?"}
     return FileResponse(index_path)

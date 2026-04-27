@@ -16,7 +16,7 @@ import time
 import functools
 from typing import Callable
 
-from config.settings import settings
+from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

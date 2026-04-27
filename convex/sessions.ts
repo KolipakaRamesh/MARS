@@ -35,25 +35,35 @@ export const getRecentSessions = query({
   },
 });
 /**
- * Remove a session and its associated heartbeat by Convex ID.
+ * Remove all records associated with a session_id (robust cleanup).
  */
 export const remove = mutation({
-  args: { id: v.id("sessions") },
+  args: { session_id: v.string() },
   handler: async (ctx, args) => {
-    const session = await ctx.db.get(args.id);
-    if (!session) return;
-
-    const sessionId = session.session_id;
-    await ctx.db.delete(args.id);
-
-    // Also cleanup the heartbeat(s)
-    const heartbeats = await ctx.db
-      .query("heartbeats")
-      .withIndex("by_session_id", (q) => q.eq("session_id", sessionId))
+    console.log("Convex: remove triggered for session_id", args.session_id);
+    
+    // Find and delete all session records for this ID
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_session_id", (q) => q.eq("session_id", args.session_id))
       .collect();
 
+    console.log(`Convex: Found ${sessions.length} sessions to delete`);
+    for (const s of sessions) {
+      await ctx.db.delete(s._id);
+    }
+
+    // Cleanup heartbeats
+    const heartbeats = await ctx.db
+      .query("heartbeats")
+      .withIndex("by_session_id", (q) => q.eq("session_id", args.session_id))
+      .collect();
+
+    console.log(`Convex: Found ${heartbeats.length} heartbeats to delete`);
     for (const hb of heartbeats) {
       await ctx.db.delete(hb._id);
     }
+    
+    return { success: true, deletedSessions: sessions.length };
   },
 });

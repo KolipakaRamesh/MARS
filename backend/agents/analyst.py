@@ -8,22 +8,21 @@ Design decisions:
   - Uses the largest/most capable model in the system (70B parameter class)
   - Temperature: 0.3 (some creativity for prose quality, but grounded)
   - Accepts reviewer feedback on RETRY passes to improve the answer
-  - Strict grounding instruction: "Do NOT add information not in research"
+  - Strict groundedness instruction: "Do NOT add information not in research"
 
 Token budget: raw_research can be long; we chunk if needed but pass all context
 to the analyst since synthesis quality depends on complete information.
 """
 import logging
 
-from agents.base import BaseAgent
-from llm import get_provider
-from observability.tracer import trace_agent
-from orchestration.state import AgentState
-from config.settings import settings
-from agents.prompts import ANALYST_SYSTEM_PROMPT, ANALYST_RETRY_SYSTEM_PROMPT
+from backend.agents.base import BaseAgent
+from backend.llm import get_provider
+from backend.observability.tracer import trace_agent
+from backend.orchestration.state import AgentState
+from backend.config.settings import settings
+from backend.agents.prompts import ANALYST_SYSTEM_PROMPT, ANALYST_RETRY_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
-
 
 
 class AnalystAgent(BaseAgent):
@@ -38,7 +37,7 @@ class AnalystAgent(BaseAgent):
         )
 
     @trace_agent("analyst")
-    def run(self, state: AgentState) -> dict:
+    async def run(self, state: AgentState) -> dict:
         iteration = state.get("iteration_count", 0)
         logger.info("[Analyst] Synthesizing (iteration %d)", iteration)
 
@@ -70,7 +69,7 @@ class AnalystAgent(BaseAgent):
                 f"Revise your answer to address the feedback."
             )
 
-        answer, usage = self.llm.invoke_with_usage(system, user_msg)
+        answer, usage = await self.llm.invoke_with_usage(system, user_msg)
 
         return {
             "synthesized_answer": answer,

@@ -21,15 +21,14 @@ import json
 import logging
 import re
 
-from agents.base import BaseAgent
-from llm import get_provider
-from observability.tracer import trace_agent
-from orchestration.state import AgentState
-from config.settings import settings
-from agents.prompts import REVIEWER_SYSTEM_PROMPT
+from backend.agents.base import BaseAgent
+from backend.llm import get_provider
+from backend.observability.tracer import trace_agent
+from backend.orchestration.state import AgentState
+from backend.config.settings import settings
+from backend.agents.prompts import REVIEWER_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
-
 
 
 class ReviewerAgent(BaseAgent):
@@ -45,7 +44,7 @@ class ReviewerAgent(BaseAgent):
         self.threshold = settings.quality_threshold
 
     @trace_agent("reviewer")
-    def run(self, state: AgentState) -> dict:
+    async def run(self, state: AgentState) -> dict:
         query = state["query"]
         answer = state.get("synthesized_answer", "")
 
@@ -59,7 +58,7 @@ class ReviewerAgent(BaseAgent):
 
         logger.info("[Reviewer] Evaluating answer (iteration %d)", state.get("iteration_count", 1))
 
-        result = self._evaluate(query, answer)
+        result = await self._evaluate(query, answer)
         score   = result.get("overall_score", 0.0)
         verdict = result.get("verdict", "PASS")
         feedback = result.get("feedback", "")
@@ -87,7 +86,7 @@ class ReviewerAgent(BaseAgent):
             ],
         }
 
-    def _evaluate(self, query: str, answer: str) -> dict:
+    async def _evaluate(self, query: str, answer: str) -> dict:
         """Call LLM and parse JSON review result, with usage tracking."""
         user_msg = (
             f"ORIGINAL QUERY:\n{query}\n\n"
@@ -97,7 +96,7 @@ class ReviewerAgent(BaseAgent):
         last_usage = {"model": self.llm.model, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "latency_ms": 0}
         for attempt in range(2):
             try:
-                raw, usage = self.llm.invoke_with_usage(REVIEWER_SYSTEM_PROMPT, user_msg)
+                raw, usage = await self.llm.invoke_with_usage(REVIEWER_SYSTEM_PROMPT, user_msg)
                 last_usage = usage
                 parsed = self._parse_json(raw)
                 parsed["_usage"] = last_usage

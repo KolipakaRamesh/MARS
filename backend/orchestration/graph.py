@@ -9,8 +9,8 @@ The graph is compiled once at startup and reused for all requests.
 """
 import logging
 from langgraph.graph import StateGraph, END
-from orchestration.state import AgentState
-from orchestration.router import route_after_research, route_after_review
+from backend.orchestration.state import AgentState
+from backend.orchestration.router import route_after_research, route_after_review
 
 logger = logging.getLogger(__name__)
 

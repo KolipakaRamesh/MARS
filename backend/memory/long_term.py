@@ -17,7 +17,7 @@ from typing import List, Optional
 
 from convex import ConvexClient
 from openai import OpenAI
-from config.settings import settings
+from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

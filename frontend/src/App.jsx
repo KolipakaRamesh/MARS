@@ -113,6 +113,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   // Convex Hooks
   const history = useQuery(api.sessions.getRecentSessions, { limit: 15 }) || [];
@@ -173,22 +174,29 @@ function App() {
     e.preventDefault();
     e.stopPropagation();
     
-    if (window.confirm("Are you sure you want to delete this research session?")) {
-      try {
-        setDeletingId(id);
-        await deleteSession({ id });
-        
-        if (currentSessionId === sessionId) {
-          setResult(null);
-          setQuery('');
-          setCurrentSessionId(null);
-        }
-      } catch (err) {
-        console.error("Failed to delete session:", err);
-        alert("Failed to delete session.");
-      } finally {
-        setDeletingId(null);
+    // Custom confirmation logic
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      // Reset confirmation after 3 seconds if not clicked again
+      setTimeout(() => setConfirmDeleteId(prev => prev === id ? null : prev), 3000);
+      return;
+    }
+
+    try {
+      setDeletingId(id);
+      setConfirmDeleteId(null);
+      await deleteSession({ session_id: sessionId });
+      
+      if (currentSessionId === sessionId) {
+        setResult(null);
+        setQuery('');
+        setCurrentSessionId(null);
       }
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+      alert("Failed to delete session: " + err.message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -233,12 +241,18 @@ function App() {
               >
                 <span className="history-query">{s.query}</span>
                 <button 
-                  className="delete-session-btn" 
+                  className={`delete-session-btn ${confirmDeleteId === s._id ? 'confirming' : ''}`} 
                   disabled={deletingId === s._id}
                   onClick={(e) => handleDeleteSession(e, s._id, s.session_id)}
-                  title="Delete session"
+                  title={confirmDeleteId === s._id ? "Click again to confirm" : "Delete session"}
                 >
-                  {deletingId === s._id ? <div className="btn-spinner" /> : <Trash2 size={12} />}
+                  {deletingId === s._id ? (
+                    <div className="btn-spinner" />
+                  ) : confirmDeleteId === s._id ? (
+                    <span className="confirm-text">Sure?</span>
+                  ) : (
+                    <Trash2 size={12} />
+                  )}
                 </button>
               </div>
             )) : (

@@ -1,15 +1,16 @@
 """
-MARS — OpenRouter LLM Provider.
+MARS — OpenRouter LLM Provider (Async).
 
-Uses the OpenAI-compatible API endpoint exposed by OpenRouter.
+Uses the OpenAI-compatible API endpoint exposed by OpenRouter via AsyncOpenAI.
 Supports every model available on openrouter.ai with zero code changes.
 Retry logic via tenacity handles transient 429 / 5xx errors.
 """
 import logging
 import time
-from typing import List, Dict
+import asyncio
+from typing import List, Dict, Tuple
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -17,15 +18,15 @@ from tenacity import (
     retry_if_exception_type,
 )
 
-from llm.provider import LLMProvider
-from config.settings import settings
+from backend.llm.provider import LLMProvider
+from backend.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
 
 class OpenRouterProvider(LLMProvider):
     """
-    OpenAI-compatible client pointed at OpenRouter.
+    OpenAI-compatible async client pointed at OpenRouter.
 
     Args:
         model:       OpenRouter model ID (e.g. "meta-llama/llama-3.1-8b-instruct")
@@ -42,7 +43,7 @@ class OpenRouterProvider(LLMProvider):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self._client = OpenAI(
+        self._client = AsyncOpenAI(
             api_key=settings.openrouter_api_key,
             base_url=settings.openrouter_base_url,
         )
@@ -51,21 +52,21 @@ class OpenRouterProvider(LLMProvider):
     # Public API
     # ------------------------------------------------------------------
 
-    def invoke(self, system_prompt: str, user_message: str) -> str:
+    async def invoke(self, system_prompt: str, user_message: str) -> str:
         """Single-turn convenience wrapper."""
-        return self.chat(
+        return await self.chat(
             system_prompt=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         )
 
-    def chat(self, system_prompt: str, messages: List[Dict[str, str]]) -> str:
+    async def chat(self, system_prompt: str, messages: List[Dict[str, str]]) -> str:
         """Multi-turn call — full message history passed to the model."""
-        content, _ = self.chat_with_usage(system_prompt, messages)
+        content, _ = await self.chat_with_usage(system_prompt, messages)
         return content
 
-    def chat_with_usage(
+    async def chat_with_usage(
         self, system_prompt: str, messages: List[Dict[str, str]]
-    ) -> tuple:
+    ) -> Tuple[str, dict]:
         """
         Multi-turn call that also returns a live usage record from OpenRouter.
 
@@ -75,7 +76,7 @@ class OpenRouterProvider(LLMProvider):
         """
         full_messages = [{"role": "system", "content": system_prompt}] + messages
         t0 = time.perf_counter()
-        response = self._call_with_retry(full_messages)
+        response = await self._call_with_retry(full_messages)
         latency_ms = round((time.perf_counter() - t0) * 1000, 1)
 
         content = response.choices[0].message.content or ""
@@ -99,9 +100,9 @@ class OpenRouterProvider(LLMProvider):
         )
         return content.strip(), usage_record
 
-    def invoke_with_usage(self, system_prompt: str, user_message: str) -> tuple:
+    async def invoke_with_usage(self, system_prompt: str, user_message: str) -> Tuple[str, dict]:
         """Single-turn call that also returns usage data."""
-        return self.chat_with_usage(
+        return await self.chat_with_usage(
             system_prompt=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         )
@@ -116,8 +117,8 @@ class OpenRouterProvider(LLMProvider):
         retry=retry_if_exception_type(Exception),
         reraise=True,
     )
-    def _call_with_retry(self, messages: List[Dict[str, str]]):
-        return self._client.chat.completions.create(
+    async def _call_with_retry(self, messages: List[Dict[str, str]]):
+        return await self._client.chat.completions.create(
             model=self.model,
             messages=messages,
             temperature=self.temperature,
